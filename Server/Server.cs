@@ -1,7 +1,9 @@
 ﻿using Microsoft.Data.SqlClient;
 using System.Data;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection.PortableExecutable;
 using System.Text;
 
 namespace server
@@ -13,12 +15,26 @@ namespace server
 
         const int BatchSize = 10_000;
 
-        static void Main()
+        static async Task Main()
         {
             var listener = new TcpListener(IPAddress.Loopback, 1234);
             listener.Start();
 
-            using var client = listener.AcceptTcpClient();
+            Console.WriteLine("Server started and listening on port 1234...");
+
+            while (true)
+            {
+                var client = await listener.AcceptTcpClientAsync();
+
+                _ = Task.Run(() => HandleClient(client));
+            }
+        }
+
+        private static void HandleClient(TcpClient client)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] Client connected. Starting to process data...");
+
             using var reader = new StreamReader(client.GetStream(), Encoding.UTF8, false, 65536);
 
             using var con = new SqlConnection(ConnStr);
@@ -38,8 +54,6 @@ namespace server
 
             if (dt.Rows.Count > 0)
                 Flush(dt, bulk);
-
-            listener.Stop();
         }
 
         static bool TryAddRow(string line, DataTable dt)
